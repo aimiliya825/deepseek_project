@@ -24,7 +24,7 @@ def main():
     assert "window.THREE" in html or "global.THREE" in html, "three missing"
 
     scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.DOTALL)
-    assert len(scripts) == 5, f"expected 5 inline scripts, found {len(scripts)}"
+    assert len(scripts) == 6, f"expected 6 inline scripts, found {len(scripts)}"
     styles = re.findall(r"<style(?:\s[^>]*)?>(.*?)</style>", html, re.DOTALL)
     assert len(styles) == 1, f"expected 1 inline style block, found {len(styles)}"
     assert "</script" not in "".join(scripts).lower(), "nested script close in JS"
@@ -75,18 +75,31 @@ def main():
         "ui_cn": "部件清单",
         "ui_detail": "拆解此部件",
         "guide": "拖拽旋转",
+        "gesture": "gesture-dock",
+        "gesture_api": "Action4Gesture",
     }
     for name, needle in checks.items():
         assert needle in html, f"missing content marker: {name} ({needle})"
 
     ui_css = (SRC / "ui.css").read_text(encoding="utf-8")
     app_css = (SRC / "app.css").read_text(encoding="utf-8")
-    assert ui_css in html and app_css in html, "CSS sources not embedded verbatim"
-    for rel in ["parts-data.js", "model.js", "ui.js", "app.js"]:
+    gesture_css = (SRC / "gesture.css").read_text(encoding="utf-8")
+    assert ui_css in html and app_css in html and gesture_css in html, "CSS sources not embedded verbatim"
+    for rel in ["parts-data.js", "model.js", "ui.js", "app.js", "gesture.js"]:
         src = (SRC / rel).read_text(encoding="utf-8")
         assert src in html, f"{rel} not embedded verbatim"
 
+    gesture_assets = [
+        ROOT / "vendor" / "mediapipe" / "vision_bundle.js",
+        ROOT / "vendor" / "mediapipe" / "hand_landmarker.task",
+        ROOT / "vendor" / "mediapipe" / "wasm" / "vision_wasm_internal.wasm",
+        ROOT / "vendor" / "mediapipe" / "wasm" / "vision_wasm_nosimd_internal.wasm",
+    ]
+    missing_assets = [str(p.relative_to(ROOT)) for p in gesture_assets if not p.exists() or p.stat().st_size < 1000]
+    assert not missing_assets, f"missing gesture assets: {missing_assets}"
+
     report.update({
+        "gesture_assets_mb": round(sum(p.stat().st_size for p in gesture_assets) / (1024 * 1024), 2),
         "bytes": INDEX.stat().st_size,
         "sha256": hashlib.sha256(INDEX.read_bytes()).hexdigest(),
         "scripts": len(scripts),

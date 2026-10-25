@@ -15,6 +15,7 @@ SCRIPTS = [
     ("src/model.js", "INLINE_MODEL"),
     ("src/ui.js", "INLINE_UI"),
     ("src/app.js", "INLINE_APP"),
+    ("src/gesture.js", "INLINE_GESTURE"),
 ]
 
 
@@ -29,7 +30,12 @@ def main():
 
     ui_css = (SRC / "ui.css").read_text(encoding="utf-8")
     app_css = (SRC / "app.css").read_text(encoding="utf-8")
-    styles = f"<style>\n/* ===== HUD ===== */\n{ui_css}\n/* ===== SCENE / LABELS ===== */\n{app_css}\n</style>"
+    gesture_css = (SRC / "gesture.css").read_text(encoding="utf-8")
+    styles = (
+        f"<style>\n/* ===== HUD ===== */\n{ui_css}\n"
+        f"/* ===== SCENE / LABELS ===== */\n{app_css}\n"
+        f"/* ===== GESTURE CONTROL ===== */\n{gesture_css}\n</style>"
+    )
     inline = template.replace("<!--INLINE_STYLES-->", styles)
 
     missing = []
@@ -49,7 +55,7 @@ def main():
     preview = template
     preview = preview.replace(
         "<!--INLINE_STYLES-->",
-        '<link rel="stylesheet" href="../src/ui.css" />\n<link rel="stylesheet" href="../src/app.css" />',
+        '<link rel="stylesheet" href="../src/ui.css" />\n<link rel="stylesheet" href="../src/app.css" />\n<link rel="stylesheet" href="../src/gesture.css" />',
     )
     for rel, marker in SCRIPTS:
         preview = preview.replace(f"<!--{marker}-->", f'<script src="../{rel}"></script>')

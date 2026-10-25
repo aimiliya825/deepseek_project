@@ -1,8 +1,8 @@
 # QA Report — DJI Osmo Action 4 · 3D 拆解实验室
 
 日期：2026-10-25  
-交付物：`index.html`（单文件，约 2.62 MB）  
-结论：**PASS**（已补充真实 Chromium/headless Edge 渲染验证，修复了一个阻塞性 WebGL 渲染异常）
+交付物：`index.html`（约 2.66 MB）+ 按需加载的 `vendor/mediapipe/` 手势资源  
+结论：**PASS**（真实 headless Edge 渲染 + fake-webcam 手势检测验证通过）
 
 ## 已执行验证
 
@@ -13,17 +13,20 @@
 | `tools/test_app_node.js` @1440×900 | 通过：boot → select → explode(10/10 + 11 labels) → assemble(0/10)，0 errors |
 | `tools/test_app_node.js` @1366×768 / 900×1000 / 834×1112 / 390×844 | 通过（移动端按设计只显示选中部件标签） |
 | `tools/build_page.py` 确定性重建 | 通过；连续两次构建一致 |
-| `tools/validate_page.py` | 通过：5 个内联经典脚本 + 1 个内联样式；无外部 `src/href` 依赖；无占位符；源码逐字内嵌 |
+| `tools/validate_page.py` | 通过：6 个内联经典脚本 + 1 个内联样式；手势资源齐全；无外部 `src/href` 依赖；无占位符；源码逐字内嵌 |
 | UI 模块独立测试 | 通过：全部契约方法、8 个回调、移动端抽屉、键盘导航、hover 清除、busy/progress、destroy |
 | 模型契约检查 | 通过：177/177 拾取网格带 partId；11 个部件组 identity；anchor 不可见不可拾取；body fadeMaterials 正常；update/dispose 幂等 |
 | **真实浏览器渲染** | headless Edge 1440×900 / 390×844：页面 ready、0 控制台错误、3D 相机可见、UI 正常；截图见 `docs/assets/hero.jpg` |
+| **手势模式** | fake webcam 下成功加载 MediaPipe WASM + Hand Landmarker；本地手部视频检测到 21 点骨架，光标锁定机身中框；`Action4Control` 抓取/进度/释放 API 在真实渲染器中验证通过；无 JS 异常 |
+| 手势资源 | `vision_bundle.js` + SIMD/non-SIMD WASM + `hand_landmarker.task`（约 25 MB），仅在点击「手势控制」后加载，支持 GPU/CPU 回退 |
 
 ## 需求覆盖
 
 | 需求 | 实现 |
 | --- | --- |
 | DJI Action 4 外观与摄像头等核心部件 | 程序化机身、可替换保护镜、155° 超广角镜头、1/1.3″ CMOS、双屏、主板、电池、散热、顶部按键、磁吸底座 |
-| 点击部件拆解动画 | 单击部件（或清单/详情按钮）沿设定方向拆解；再次点击复位；全部拆解/组装 |
+| 摄像头手势拆解 | MediaPipe Hand Landmarker；移动手掌移动光标，捏合抓取部件，上下拉动拆解/推回；捏合机身中框全拆/全装 |
+| 点击部件拆解动画 | 鼠标模式：单击部件（或清单/详情按钮）沿设定方向拆解；再次点击复位；全部拆解/组装。手势模式中鼠标点击只选择，不拆解 |
 | 自由旋转缩放 | OrbitControls（拖拽/滚轮/右键平移/触控），自动旋转、复位视角、全屏 |
 | 部件详情 | 右栏显示类别、中英文名、说明、4 项参数、拆解状态与 CTA |
 | 深色科技背景 | 空间渐变、程序化环境反射、地面网格/圆环、粒子、PBR 灯光、Bloom、ACES |
@@ -50,6 +53,8 @@
 ## 残余风险
 
 - 真实手势触控、低端 GPU 帧率与不同浏览器之间的细微色调差异仍需在目标设备上最终确认。
+- 手势识别需要 HTTPS 或 localhost；直接以 `file://` 打开时核心 3D 可用，但浏览器会阻止本地 MediaPipe 模块加载，请使用 GitHub Pages 在线演示或本地 HTTP 服务。
+- 实际捏合手势的识别阈值建议在目标摄像头与光照下做一次真机确认；本次以真实手部视频验证了检测与光标，抓取/进度 API 已通过渲染器集成测试。
 - 建议桌面端使用 Chrome/Edge，并开启硬件加速。
 
 ## 推荐

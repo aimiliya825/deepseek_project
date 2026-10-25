@@ -27,6 +27,8 @@ const readyWait = parseInt(arg('ready-wait', '20000'), 10);
 const waitMs = parseInt(arg('wait', '1200'), 10);
 const afterMs = parseInt(arg('after', '1200'), 10);
 const evalJs = arg('eval', '');
+const fakeCamera = process.argv.includes('--fake-camera');
+const fakeVideo = arg('fake-video', '');
 const port = 9400 + Math.floor(Math.random() * 200);
 const profile = path.join(ROOT, '.tmp', 'edge-cdp-' + port);
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -46,7 +48,7 @@ async function waitForFetch(u, tries = 120) {
 }
 
 (async () => {
-  const child = spawn(EDGE, [
+  const launchArgs = [
     '--headless=new',
     '--no-sandbox',
     '--disable-gpu-sandbox',
@@ -58,11 +60,22 @@ async function waitForFetch(u, tries = 120) {
     '--no-first-run',
     '--no-default-browser-check',
     '--hide-scrollbars',
+    '--autoplay-policy=no-user-gesture-required',
     '--window-size=' + width + ',' + height,
     '--remote-debugging-port=' + port,
     '--user-data-dir=' + profile,
     'about:blank'
-  ], { stdio: 'ignore', windowsHide: true });
+  ];
+  if (fakeCamera || fakeVideo) {
+    launchArgs.splice(launchArgs.length - 2, 0,
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream'
+    );
+  }
+  if (fakeVideo) {
+    launchArgs.splice(launchArgs.length - 2, 0, '--use-file-for-fake-video-capture=' + path.resolve(fakeVideo));
+  }
+  const child = spawn(EDGE, launchArgs, { stdio: 'ignore', windowsHide: true });
 
   let ws;
   const consoleLines = [];

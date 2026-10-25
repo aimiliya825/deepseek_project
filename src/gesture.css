@@ -1,0 +1,527 @@
+/* ============================================================
+   Camera gesture mode — HUD, preview and hand cursor
+   ============================================================ */
+
+#a4-gesture-btn.is-hand {
+  color: var(--a4-cyan);
+  border-color: rgba(95, 232, 255, 0.45);
+  box-shadow: inset 0 0 14px rgba(95, 232, 255, 0.1), 0 0 18px rgba(95, 232, 255, 0.08);
+}
+
+#a4-gesture-btn.is-hand::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--a4-cyan);
+  box-shadow: 0 0 7px var(--a4-cyan);
+  animation: gesture-live-pulse 1.4s ease-in-out infinite;
+}
+
+/* Keep the focus on the model while hand tracking is live. */
+body.gesture-active .a4-left,
+body.gesture-active .a4-telemetry,
+body.gesture-active .a4-guide,
+body.gesture-active .a4-hint,
+body.gesture-active .a4-tabs,
+body.gesture-active #cursor-tip {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.gesture-active .a4-left,
+body.gesture-active .a4-telemetry,
+body.gesture-active .a4-guide {
+  transition: opacity 240ms ease, visibility 240ms;
+}
+
+body.gesture-active #scene canvas {
+  cursor: crosshair;
+}
+
+/* In live gesture mode, disassembly belongs to the hand. Keep the UI
+   fallback visible but clearly inactive; exit gesture mode to use it. */
+body.gesture-active .a4-cta,
+body.gesture-active .a4-detail-actions .a4-btn-primary {
+  opacity: 0.32;
+  pointer-events: none;
+  filter: saturate(0.35);
+}
+
+/* ------------------------------------------------------------
+   camera dock
+   ------------------------------------------------------------ */
+
+.gesture-dock {
+  position: fixed;
+  left: 22px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 20;
+  width: 300px;
+  border: 1px solid rgba(95, 232, 255, 0.24);
+  background:
+    linear-gradient(145deg, rgba(11, 25, 36, 0.94), rgba(5, 12, 19, 0.92) 56%, rgba(4, 9, 15, 0.96));
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(95, 232, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px) scale(0.985);
+  transform-origin: left bottom;
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 220ms;
+  pointer-events: auto;
+  color: var(--a4-ink);
+  font-family: var(--a4-sans, "Segoe UI", "Microsoft YaHei", sans-serif);
+}
+
+.gesture-dock.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.gesture-dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--a4-cyan), rgba(95, 232, 255, 0), var(--a4-amber));
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.gesture-dock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid rgba(146, 176, 196, 0.14);
+}
+
+.gesture-live {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--a4-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: rgba(180, 219, 233, 0.9);
+}
+
+.gesture-live__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--a4-cyan);
+  box-shadow: 0 0 8px rgba(95, 232, 255, 0.9);
+  animation: gesture-live-pulse 1.4s ease-in-out infinite;
+}
+
+.gesture-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(169, 201, 214, 0.7);
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.gesture-iconbtn:hover {
+  color: #edfaff;
+  border-color: rgba(95, 232, 255, 0.3);
+  background: rgba(95, 232, 255, 0.08);
+}
+
+.gesture-iconbtn:focus-visible,
+.gesture-btn:focus-visible {
+  outline: 1px solid var(--a4-cyan);
+  outline-offset: 2px;
+}
+
+.gesture-view {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(80% 80% at 50% 50%, rgba(14, 44, 55, 0.7), rgba(2, 6, 11, 0.98));
+  overflow: hidden;
+  border-bottom: 1px solid rgba(146, 176, 196, 0.14);
+}
+
+#gesture-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  filter: saturate(0.72) contrast(1.08) brightness(0.78);
+}
+
+#gesture-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.gesture-view::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(2, 6, 11, 0.35), transparent 30%, transparent 74%, rgba(2, 6, 11, 0.55)),
+    repeating-linear-gradient(0deg, rgba(190, 225, 240, 0.045) 0 1px, transparent 1px 4px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+}
+
+.gesture-view__empty {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: radial-gradient(70% 70% at 50% 50%, rgba(7, 23, 32, 0.7), rgba(3, 8, 13, 0.94));
+  color: rgba(177, 216, 231, 0.82);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  transition: opacity 220ms ease, visibility 220ms;
+}
+
+.gesture-view__empty.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.gesture-view__ring {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(95, 232, 255, 0.45);
+  box-shadow: 0 0 18px rgba(95, 232, 255, 0.18), inset 0 0 14px rgba(95, 232, 255, 0.08);
+  animation: gesture-ring 2.2s ease-in-out infinite;
+}
+
+.gesture-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 4;
+  padding: 3px 6px;
+  border: 1px solid rgba(146, 176, 196, 0.28);
+  background: rgba(4, 10, 16, 0.72);
+  font-family: var(--a4-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 7.5px;
+  line-height: 1;
+  letter-spacing: 0.13em;
+  color: rgba(180, 217, 231, 0.85);
+  text-transform: uppercase;
+}
+
+.gesture-badge[data-tone="ready"] {
+  color: var(--a4-cyan);
+  border-color: rgba(95, 232, 255, 0.4);
+}
+
+.gesture-badge[data-tone="accent"] {
+  color: var(--a4-amber);
+  border-color: rgba(255, 180, 74, 0.45);
+}
+
+.gesture-badge[data-tone="error"] {
+  color: var(--a4-red);
+  border-color: rgba(255, 91, 82, 0.45);
+}
+
+.gesture-view__scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12%;
+  z-index: 3;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(95, 232, 255, 0.55), transparent);
+  box-shadow: 0 0 10px rgba(95, 232, 255, 0.35);
+  opacity: 0.6;
+  animation: gesture-scan 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.gesture-dock__body {
+  padding: 10px 12px 11px;
+}
+
+.gesture-status {
+  min-height: 28px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: rgba(214, 238, 247, 0.92);
+}
+
+.gesture-status[data-tone="error"] { color: var(--a4-red); }
+.gesture-status[data-tone="accent"] { color: #ffe1ad; }
+.gesture-status[data-tone="busy"] { color: var(--a4-cyan); }
+
+.gesture-guide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 8px 0 9px;
+}
+
+.gesture-guide__item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 6px;
+  border: 1px solid rgba(146, 176, 196, 0.11);
+  background: rgba(146, 176, 196, 0.035);
+}
+
+.gesture-guide__item b {
+  font-size: 9px;
+  font-weight: 600;
+  color: #dcf6fd;
+  letter-spacing: 0.02em;
+}
+
+.gesture-guide__item span {
+  font-size: 8px;
+  color: rgba(164, 199, 214, 0.7);
+  letter-spacing: 0.03em;
+}
+
+.gesture-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gesture-btn {
+  flex: 1 1 auto;
+  height: 28px;
+  border: 1px solid rgba(95, 232, 255, 0.3);
+  background: rgba(95, 232, 255, 0.08);
+  color: #e4f9ff;
+  font-family: var(--a4-sans, "Segoe UI", "Microsoft YaHei", sans-serif);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.gesture-btn:hover {
+  background: rgba(95, 232, 255, 0.16);
+  border-color: rgba(95, 232, 255, 0.55);
+}
+
+.gesture-btn--ghost {
+  flex: 0 0 70px;
+  color: var(--a4-red);
+  border-color: rgba(255, 91, 82, 0.25);
+  background: rgba(255, 91, 82, 0.06);
+}
+
+.gesture-btn--ghost:hover {
+  background: rgba(255, 91, 82, 0.12);
+  border-color: rgba(255, 91, 82, 0.45);
+}
+
+.gesture-privacy {
+  margin: 7px 0 0;
+  font-family: var(--a4-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 7px;
+  letter-spacing: 0.07em;
+  color: rgba(120, 155, 172, 0.68);
+}
+
+/* ------------------------------------------------------------
+   screen-space hand cursor
+   ------------------------------------------------------------ */
+
+.gesture-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  width: 38px;
+  height: 38px;
+  margin-left: -19px;
+  margin-top: -19px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-100px, -100px, 0);
+  transition: opacity 160ms ease;
+  will-change: transform;
+}
+
+.gesture-cursor.is-visible { opacity: 1; }
+
+.gesture-cursor__ring {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(95, 232, 255, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(95, 232, 255, 0.25), inset 0 0 10px rgba(95, 232, 255, 0.12);
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.gesture-cursor__ring::before,
+.gesture-cursor__ring::after {
+  content: "";
+  position: absolute;
+  background: rgba(95, 232, 255, 0.75);
+}
+
+.gesture-cursor__ring::before {
+  left: 50%;
+  top: -4px;
+  width: 1px;
+  height: 5px;
+}
+
+.gesture-cursor__ring::after {
+  top: 50%;
+  right: -4px;
+  width: 5px;
+  height: 1px;
+}
+
+.gesture-cursor__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--a4-cyan);
+  box-shadow: 0 0 10px var(--a4-cyan);
+}
+
+.gesture-cursor__label {
+  position: absolute;
+  left: 44px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 230px;
+  padding: 5px 7px;
+  border: 1px solid rgba(95, 232, 255, 0.22);
+  background: rgba(4, 11, 17, 0.82);
+  color: #d9f7ff;
+  font-family: var(--a4-mono, "Cascadia Code", Consolas, monospace);
+  font-size: 8px;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 140ms ease, border-color 140ms ease;
+}
+
+.gesture-cursor.is-over .gesture-cursor__label,
+.gesture-cursor.is-pinching .gesture-cursor__label,
+.gesture-cursor.is-grabbing .gesture-cursor__label {
+  opacity: 1;
+}
+
+.gesture-cursor.is-over .gesture-cursor__ring {
+  border-color: var(--a4-amber);
+  transform: scale(1.12);
+  box-shadow: 0 0 18px rgba(255, 180, 74, 0.28), inset 0 0 10px rgba(255, 180, 74, 0.12);
+}
+
+.gesture-cursor.is-over .gesture-cursor__label {
+  border-color: rgba(255, 180, 74, 0.35);
+  color: #ffebc8;
+}
+
+.gesture-cursor.is-pinching .gesture-cursor__ring {
+  border-color: var(--a4-amber);
+  transform: scale(0.72);
+  box-shadow: 0 0 22px rgba(255, 180, 74, 0.42);
+}
+
+.gesture-cursor.is-grabbing .gesture-cursor__ring {
+  border-color: #fff0c7;
+  transform: scale(0.62);
+  box-shadow: 0 0 26px rgba(255, 200, 95, 0.55);
+}
+
+.gesture-cursor.is-grabbing .gesture-cursor__dot {
+  background: var(--a4-amber);
+  box-shadow: 0 0 12px var(--a4-amber);
+}
+
+/* ------------------------------------------------------------
+   animations / responsive
+   ------------------------------------------------------------ */
+
+@keyframes gesture-live-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes gesture-ring {
+  0%, 100% { transform: scale(0.94); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes gesture-scan {
+  0% { transform: translateY(0); opacity: 0; }
+  12% { opacity: 0.7; }
+  78% { opacity: 0.25; }
+  100% { transform: translateY(300px); opacity: 0; }
+}
+
+@media (max-width: 900px) {
+  .gesture-dock {
+    left: 10px;
+    right: auto;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: 210px;
+    max-width: calc(100vw - 20px);
+  }
+  .gesture-dock__head { height: 30px; padding-left: 9px; }
+  .gesture-live { font-size: 6.5px; letter-spacing: 0.11em; }
+  .gesture-iconbtn { width: 24px; height: 24px; }
+  .gesture-view { aspect-ratio: 4 / 3; }
+  .gesture-guide { display: none; }
+  .gesture-dock__body { padding: 7px 8px 9px; }
+  .gesture-status { min-height: 22px; font-size: 9px; line-height: 1.45; }
+  .gesture-actions { gap: 4px; }
+  .gesture-btn { height: 25px; font-size: 8px; }
+  .gesture-privacy { font-size: 6px; }
+}
+
+@media (max-height: 700px) and (min-width: 901px) {
+  .gesture-dock { width: 280px; bottom: 12px; }
+  .gesture-view { aspect-ratio: 16 / 10; }
+  .gesture-guide { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gesture-live__dot,
+  .gesture-view__ring,
+  .gesture-view__scan,
+  #a4-gesture-btn.is-hand::before { animation: none; }
+}

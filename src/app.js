@@ -46,6 +46,7 @@
     busyTimer: 0,
     allDetached: false,
     fatal: false,
+    gestureActive: false,
     explodedCount: 0,
     booted: false,
     ready: false,
@@ -1196,7 +1197,7 @@
         e.preventDefault();
         e.stopPropagation();
         state.hasInteracted = true;
-        selectPart(data.id, { focus: false, reveal: true });
+        selectPart(data.id, { focus: false, reveal: !state.gestureActive });
       });
       btn.addEventListener('mouseenter', function () { applyHover(data.id, true); });
       btn.addEventListener('mouseleave', function () { applyHover(null, true); });
@@ -1583,8 +1584,13 @@
     partRT.forEach(function (rt) {
       var isSel = rt.id === selected;
       var isHov = rt.id === hovered;
+      var core = !!rt.data.core;
       var resting = rt.progress > 0.04 || isSel || isHov ? 0.18 : 0.025;
-      var targetGlow = isSel ? 1.3 : isHov ? 0.72 : resting;
+      // The chassis is a large, strongly-lit part: a full selection glow
+      // would wash out the entire camera in amber. Keep its rim glow subtle.
+      var targetGlow = core
+        ? (isSel ? 0.22 : isHov ? 0.08 : 0.015)
+        : (isSel ? 1.05 : isHov ? 0.5 : resting);
       rt.glow = damp(rt.glow, targetGlow, 9, dt);
       var pulse = isSel ? (0.85 + 0.15 * Math.sin(time * 3.2)) : 1;
       var base = 0;
@@ -1592,7 +1598,7 @@
         var mat = rt.materials[i];
         if (mat && mat.emissive && mat.emissive.isColor) {
           base = rt.baseEmissive[i] || 0;
-          mat.emissiveIntensity = base + rt.glow * pulse * 1.1;
+          mat.emissiveIntensity = base + rt.glow * pulse * (core ? 0.42 : 1.0);
         }
       }
       if (rt.halo) {
@@ -1730,15 +1736,12 @@
     }
   }
 
-  function updateHoverRayOnFrame() {
-    if (!state.hoverRayDirty || !raycaster || !camera || !pickMeshes.length) return;
-    state.hoverRayDirty = false;
-    if (!state.pointer.inside || COARSE) return;
-    var nx = (state.pointer.x / window.innerWidth) * 2 - 1;
-    var ny = -(state.pointer.y / window.innerHeight) * 2 + 1;
+  function raycastPartAt(clientX, clientY) {
+    if (!raycaster || !camera || !pickMeshes.length) return null;
+    var nx = (clientX / window.innerWidth) * 2 - 1;
+    var ny = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(new T.Vector2(nx, ny), camera);
     var hits = raycaster.intersectObjects(pickMeshes, true);
-    var hit = null;
     for (var i = 0; i < hits.length; i++) {
       var obj = hits[i].object;
       var pid = obj.userData.partId;
@@ -1746,8 +1749,17 @@
         var p = obj.parent;
         while (p && !pid) { pid = p.userData && p.userData.partId; p = p.parent; }
       }
-      if (pid) { hit = pid; break; }
+      if (pid) return pid;
     }
+    return null;
+  }
+
+  function updateHoverRayOnFrame() {
+    if (state.gestureActive) return;
+    if (!state.hoverRayDirty || !raycaster || !camera || !pickMeshes.length) return;
+    state.hoverRayDirty = false;
+    if (!state.pointer.inside || COARSE) return;
+    var hit = raycastPartAt(state.pointer.x, state.pointer.y);
     if (hit !== state.hoveredId) applyHover(hit, false);
   }
 
@@ -1856,8 +1868,10 @@
     if (state.camFlight) {
       state.camFlight = null;
     }
-    applyHover(null, false);
-    if (cursorTip) cursorTip.classList.remove('is-visible');
+    if (!state.gestureActive) {
+      applyHover(null, false);
+      if (cursorTip) cursorTip.classList.remove('is-visible');
+    }
     if (renderer) renderer.domElement.classList.add('is-grabbing');
     state.hasInteracted = true;
     if (state.autoRotate) {
@@ -1899,19 +1913,13 @@
 
   function handleCanvasClick(clientX, clientY) {
     if (!raycaster || !camera) return;
-    var nx = (clientX / window.innerWidth) * 2 - 1;
-    var ny = -(clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(new T.Vector2(nx, ny), camera);
-    var hits = raycaster.intersectObjects(pickMeshes, true);
-    var id = null;
-    for (var i = 0; i < hits.length; i++) {
-      var obj = hits[i].object;
-      var pid = obj.userData.partId;
-      if (!pid) {
-        var p = obj.parent;
-        while (p && !pid) { pid = p.userData && p.userData.partId; p = p.parent; }
-      }
-      if (pid) { id = pid; break; }
+    var id = raycastPartAt(clientX, clientY);
+    // In gesture mode the camera hand controls disassembly. Mouse clicks
+    // may still focus/select a part for its details, but never explode it.
+    if (state.gestureActive) {
+      if (id) selectPart(id, { focus: false, reveal: false, silent: true });
+      else clearSelection();
+      return;
     }
     if (!id) {
       clearSelection();
@@ -2047,12 +2055,24 @@
         parts: PARTS,
         meta: META,
         callbacks: {
-          onTogglePart: function (id) { togglePart(id); },
-          onExplodeAll: function () { explodeAll(); },
-          onAssembleAll: function () { assembleAll(); },
+          onTogglePart: function (id) {
+            if (state.gestureActive) { showToast('手势模式中请使用捏合手势，或先退出手势模式', 'muted'); return; }
+            togglePart(id);
+          },
+          onExplodeAll: function () {
+            if (state.gestureActive) return;
+            explodeAll();
+          },
+          onAssembleAll: function () {
+            if (state.gestureActive) return;
+            assembleAll();
+          },
           onResetView: function () { resetView(); },
           onToggleAutoRotate: function (value) { setAutoRotate(value); },
-          onFocusPart: function (id) { state.hasInteracted = true; selectPart(id, { focus: true, reveal: true }); },
+          onFocusPart: function (id) {
+            state.hasInteracted = true;
+            selectPart(id, { focus: true, reveal: !state.gestureActive });
+          },
           onHoverPart: function (id) {
             uiHoverLock = true;
             applyHover(id, true);
@@ -2079,6 +2099,7 @@
       leaderSvg.setAttribute('width', String(window.innerWidth));
       leaderSvg.setAttribute('height', String(window.innerHeight));
     }
+    document.dispatchEvent(new CustomEvent('a4:ui-ready'));
     guideTimer = window.setTimeout(function () {
       if (ui.dismissGuide) ui.dismissGuide();
       state.guideOpen = false;
@@ -2182,6 +2203,120 @@
   }
 
   /* ------------------------------------------------------------------------
+     Camera-gesture integration API
+     --------------------------------------------------------------------- */
+  function syncGestureTotals() {
+    var detached = detachCount();
+    state.allDetached = detached >= DETACHABLE.length;
+    if (detached !== state.explodedCount) {
+      state.explodedCount = detached;
+      ui.setProgress(detached, DETACHABLE.length);
+    }
+  }
+
+  function gesturePartInfo(id) {
+    var data = partData(id);
+    var rt = partRT.get(id);
+    if (!data || !rt) return null;
+    return {
+      id: id,
+      no: data.no,
+      name: data.name,
+      en: data.en,
+      core: !!data.core,
+      progress: rt.progress,
+      detached: rt.progress > 0.5
+    };
+  }
+
+  window.Action4Control = {
+    version: '1.0',
+    setGestureActive: function (active) {
+      state.gestureActive = !!active;
+      document.body.classList.toggle('gesture-active', state.gestureActive);
+      if (state.gestureActive) {
+        state.hasInteracted = true;
+        stopAutoRotationOnce();
+        applyHover(null, true);
+        ui.setHovered(null);
+        if (ui.dismissGuide) ui.dismissGuide();
+      }
+      return state.gestureActive;
+    },
+    isGestureActive: function () { return state.gestureActive; },
+    getSafeViewport: function () {
+      var right = window.innerWidth - 28;
+      var rightPanel = document.querySelector('.a4-right');
+      if (rightPanel && window.innerWidth > 900) {
+        var r = rightPanel.getBoundingClientRect();
+        if (r.width > 40 && r.height > 40) right = Math.min(right, r.left - 18);
+      }
+      var left = 28;
+      var top = Math.max(92, window.innerHeight * 0.1);
+      var bottom = window.innerHeight - 92;
+      return { left: left, top: top, right: Math.max(left + 240, right), bottom: Math.max(top + 240, bottom) };
+    },
+    pickAt: function (clientX, clientY) {
+      var id = raycastPartAt(clientX, clientY);
+      applyHover(id, true);
+      ui.setHovered(id);
+      return id ? gesturePartInfo(id) : null;
+    },
+    clearHover: function () {
+      applyHover(null, true);
+      ui.setHovered(null);
+    },
+    beginGrab: function (id) {
+      if (!id) return null;
+      var rt = partRT.get(id);
+      if (!rt) return null;
+      if (rt.data.core) {
+        if (state.allDetached) assembleAll();
+        else explodeAll();
+        return { id: id, core: true, global: true, detached: state.allDetached };
+      }
+      state.hasInteracted = true;
+      stopAutoRotationOnce();
+      rt.tween = null;
+      selectPart(id, { focus: false, reveal: false, silent: true });
+      return gesturePartInfo(id);
+    },
+    setGrabProgress: function (id, progress) {
+      var rt = partRT.get(id);
+      if (!rt) return 0;
+      var p = clamp(Number(progress) || 0, 0, 1);
+      rt.tween = null;
+      rt.progress = p;
+      rt.group.position.copy(rt.explode).multiplyScalar(p);
+      var detached = p > 0.5;
+      if (detached !== rt.detached) {
+        rt.detached = detached;
+        ui.setPartDetached(id, detached);
+        if (state.selectedId === id) ui.setSelected(id, { detached: detached });
+      }
+      syncGestureTotals();
+      return p;
+    },
+    endGrab: function (id, progress) {
+      var rt = partRT.get(id);
+      if (!rt) return 0;
+      var target = (Number(progress) || 0) >= 0.4 ? 1 : 0;
+      setPartTarget(id, target, { duration: 480 });
+      showToast(target ? ('手势拆解 · ' + rt.data.name) : ('手势复位 · ' + rt.data.name), target ? 'accent' : 'muted');
+      return target;
+    },
+    toggleAll: function () {
+      if (state.allDetached) assembleAll();
+      else explodeAll();
+      return state.allDetached;
+    },
+    explodeAll: explodeAll,
+    assembleAll: assembleAll,
+    isAllDetached: function () { return state.allDetached; },
+    getPartInfo: gesturePartInfo
+  };
+
+  /* ------------------------------------------------------------------------
      Debug bridge (used by verification tooling/screenshots)
      --------------------------------------------------------------------- */
   window.__A4_DEBUG__ = {
@@ -2195,6 +2330,7 @@
         explodedCount: state.explodedCount,
         allDetached: state.allDetached,
         busy: state.busy,
+        gestureActive: state.gestureActive,
         fps: state.fps,
         camera: camera ? camera.position.toArray().map(function (n) { return +n.toFixed(3); }) : null,
         target: controls ? controls.target.toArray().map(function (n) { return +n.toFixed(3); }) : null
