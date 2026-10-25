@@ -201,9 +201,9 @@
     renderer.setClearColor(0x03070d, 1);
     renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.0;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.shadowMap.type = T.PCFShadowMap;
 
     var canvas = renderer.domElement;
     canvas.setAttribute('aria-label', 'DJI Osmo Action 4 三维模型，拖拽旋转，滚轮缩放，点击部件查看拆解');
@@ -251,7 +251,7 @@
       if (T.EffectComposer && T.RenderPass && T.UnrealBloomPass && T.OutputPass) {
         composer = new T.EffectComposer(renderer);
         composer.addPass(new T.RenderPass(scene, camera));
-        bloomPass = new T.UnrealBloomPass(new T.Vector2(w, h), 0.52, 0.55, 0.72);
+        bloomPass = new T.UnrealBloomPass(new T.Vector2(w, h), 0.38, 0.5, 0.82);
         composer.addPass(bloomPass);
         composer.addPass(new T.OutputPass());
         composer.setSize(w, h);
@@ -449,7 +449,7 @@
      --------------------------------------------------------------------- */
   function initWorld() {
     scene.environment = makeEnvironmentTexture();
-    if ('environmentIntensity' in scene) scene.environmentIntensity = 1.05;
+    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.8;
 
     buildBackdrop();
     buildLights();
@@ -468,9 +468,9 @@
     var configs = [
       { bg0: '#081420', bg1: '#02060b', lights: [{ x: 0.72, y: 0.28, w: 0.12, h: 0.55, color: 'rgba(120,230,255,0.95)', blur: 48 }, { x: 0.18, y: 0.7, w: 0.28, h: 0.08, color: 'rgba(255,220,180,0.8)', blur: 30 }] },
       { bg0: '#06111a', bg1: '#01040a', lights: [{ x: 0.28, y: 0.2, w: 0.06, h: 0.5, color: 'rgba(255,170,80,0.8)', blur: 36 }, { x: 0.8, y: 0.76, w: 0.2, h: 0.06, color: 'rgba(150,240,255,0.8)', blur: 24 }] },
-      { bg0: '#0a1a25', bg1: '#02060c', lights: [{ x: 0.5, y: 0.28, w: 0.7, h: 0.055, color: 'rgba(255,255,255,0.95)', blur: 26 }, { x: 0.15, y: 0.65, w: 0.08, h: 0.2, color: 'rgba(90,220,255,0.65)', blur: 40 }] },
+      { bg0: '#0a1a25', bg1: '#02060c', lights: [{ x: 0.5, y: 0.28, w: 0.62, h: 0.045, color: 'rgba(255,255,255,0.72)', blur: 32 }, { x: 0.15, y: 0.65, w: 0.08, h: 0.2, color: 'rgba(90,220,255,0.6)', blur: 40 }] },
       { bg0: '#02050a', bg1: '#010306', lights: [{ x: 0.45, y: 0.8, w: 0.35, h: 0.04, color: 'rgba(255,160,72,0.55)', blur: 20 }] },
-      { bg0: '#091826', bg1: '#02050b', lights: [{ x: 0.5, y: 0.12, w: 0.85, h: 0.05, color: 'rgba(210,250,255,0.95)', blur: 28 }, { x: 0.78, y: 0.6, w: 0.1, h: 0.3, color: 'rgba(95,232,255,0.6)', blur: 50 }] },
+      { bg0: '#091826', bg1: '#02050b', lights: [{ x: 0.5, y: 0.12, w: 0.78, h: 0.04, color: 'rgba(210,250,255,0.72)', blur: 34 }, { x: 0.78, y: 0.6, w: 0.1, h: 0.3, color: 'rgba(95,232,255,0.55)', blur: 50 }] },
       { bg0: '#04101a', bg1: '#010408', lights: [{ x: 0.25, y: 0.42, w: 0.05, h: 0.5, color: 'rgba(95,232,255,0.55)', blur: 44 }] }
     ];
     for (var i = 0; i < 6; i++) {
@@ -594,7 +594,7 @@
     hemi.name = 'hemi';
     scene.add(hemi);
 
-    var key = new T.DirectionalLight(0xfff2df, 2.9);
+    var key = new T.DirectionalLight(0xfff2df, 2.35);
     key.position.set(6.5, 9, 7.5);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
@@ -610,23 +610,23 @@
     scene.add(key);
     scene.add(key.target);
 
-    var fill = new T.DirectionalLight(0x68d7ff, 1.55);
+    var fill = new T.DirectionalLight(0x68d7ff, 1.15);
     fill.position.set(-7.5, 2.4, 5.5);
     scene.add(fill);
 
-    var rim = new T.DirectionalLight(0x7fbfff, 2.0);
+    var rim = new T.DirectionalLight(0x7fbfff, 1.6);
     rim.position.set(-4.5, 4.5, -8.5);
     scene.add(rim);
 
-    var warm = new T.PointLight(0xff9c44, 20, 18, 2);
+    var warm = new T.PointLight(0xff9c44, 14, 18, 2);
     warm.position.set(-4.2, -1.8, 3.2);
     scene.add(warm);
 
-    var cyan = new T.PointLight(0x31cfff, 14, 16, 2);
+    var cyan = new T.PointLight(0x31cfff, 10, 16, 2);
     cyan.position.set(5.8, 2.8, -2.8);
     scene.add(cyan);
 
-    var under = new T.PointLight(0x2bb3d9, 12, 14, 2);
+    var under = new T.PointLight(0x2bb3d9, 9, 14, 2);
     under.position.set(0, -2.6, 2.2);
     scene.add(under);
 
@@ -938,7 +938,16 @@
         });
       }
       materials.forEach(function (m) {
-        if (m && m.emissive && m.emissive.isColor) {
+        if (!m) return;
+        // Guard against third-party/custom data adding `emissive` to an
+        // unlit material: WebGLRenderer expects a matching shader uniform
+        // and would throw every frame if we leave it in place.
+        if (m.isMeshBasicMaterial) {
+          try { if (m.emissive !== undefined) delete m.emissive; } catch (e) { /* frozen material */ }
+          try { if (m.emissiveIntensity !== undefined) delete m.emissiveIntensity; } catch (e2) { /* frozen material */ }
+          return;
+        }
+        if (m.emissive && m.emissive.isColor) {
           m.userData.__baseEmissive = m.emissiveIntensity || 0;
         }
       });

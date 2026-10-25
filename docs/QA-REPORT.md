@@ -1,8 +1,8 @@
 # QA Report — DJI Osmo Action 4 · 3D 拆解实验室
 
 日期：2026-10-25  
-交付物：`index.html`（单文件，2,618,760 B）  
-结论：**PASS**（无阻塞缺陷；本会话的残余风险均来自“无法运行浏览器进行最终视觉检查”）
+交付物：`index.html`（单文件，约 2.62 MB）  
+结论：**PASS**（已补充真实 Chromium/headless Edge 渲染验证，修复了一个阻塞性 WebGL 渲染异常）
 
 ## 已执行验证
 
@@ -16,6 +16,7 @@
 | `tools/validate_page.py` | 通过：5 个内联经典脚本 + 1 个内联样式；无外部 `src/href` 依赖；无占位符；源码逐字内嵌 |
 | UI 模块独立测试 | 通过：全部契约方法、8 个回调、移动端抽屉、键盘导航、hover 清除、busy/progress、destroy |
 | 模型契约检查 | 通过：177/177 拾取网格带 partId；11 个部件组 identity；anchor 不可见不可拾取；body fadeMaterials 正常；update/dispose 幂等 |
+| **真实浏览器渲染** | headless Edge 1440×900 / 390×844：页面 ready、0 控制台错误、3D 相机可见、UI 正常；截图见 `docs/assets/hero.jpg` |
 
 ## 需求覆盖
 
@@ -40,10 +41,15 @@
 5. WebGL 初始化错误不再被通用 boot catch 覆盖。
 6. Escape 同步清除 UI 行 hover；最终构建已包含全部修复。
 
+## 已定位并修复的线上问题
+
+- **3D 模型不可见 / 黑色空白画面**：`src/model.js` 的 `kit.basic()` 曾在 `MeshBasicMaterial` 上手工挂载 `emissive`/`emissiveIntensity`。Three.js 的 `WebGLRenderer.refreshUniformsCommon` 见到 `material.emissive` 后会写入 `uniforms.emissive.value`，但 Basic 材质的着色器没有该 uniform，导致每帧 `Cannot read properties of undefined (reading 'value')`，画面停留在空白。
+  - 修复：从 Basic 材质移除伪字段；`src/app.js` 增加运行时防御清理；`tools/test_model_node.js` 增加回归检查；重建 `index.html`。
+  - 验证：真实 headless Edge 中 console 无错误，模型完整可见。
+
 ## 残余风险
 
-- 本会话无法启动浏览器/WebGL（安全策略），因此最终光照、Bloom 强度、真实手势与启动时序未做人工视觉验收。
-- 已用几何软件投影检查体块比例（模型经历一次镜头/前屏比例修正）；实际材质与屏幕 UI 需在浏览器中打开 `index.html` 最终确认。
+- 真实手势触控、低端 GPU 帧率与不同浏览器之间的细微色调差异仍需在目标设备上最终确认。
 - 建议桌面端使用 Chrome/Edge，并开启硬件加速。
 
 ## 推荐

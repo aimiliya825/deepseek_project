@@ -117,6 +117,11 @@ for (const data of window.ACTION4_PARTS) {
   const materialList = p.materials || [];
   materialList.forEach((m) => {
     if (!m || !m.isMaterial) errors.push('bad material in ' + data.id);
+    // MeshBasicMaterial's shader has no emissive uniform. A fake
+    // material.emissive makes WebGLRenderer.render throw every frame.
+    if (m && m.isMeshBasicMaterial && m.emissive !== undefined) {
+      errors.push('Basic material has fake emissive (render crash): ' + data.id);
+    }
   });
   partStats[data.id] = {
     meshes: 0,

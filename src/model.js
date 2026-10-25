@@ -1239,10 +1239,9 @@
 
         kit.basic = function (opts) {
           var m = new THREE.MeshBasicMaterial(opts);
-          /* harmless metadata so generic highlight code can touch every
-             material without throwing (basic materials stay unlit) */
-          m.emissive = new THREE.Color(accentHex);
-          m.emissiveIntensity = 0;
+          /* Do NOT add fake emissive fields here: WebGLRenderer treats
+             material.emissive as a shader uniform, but MeshBasicMaterial's
+             shader has no such uniform, which makes every render throw. */
           kit.materials.push(m);
           return m;
         };

@@ -2,6 +2,8 @@
 
 一个**单文件、离线可用、可交互**的 DJI Osmo Action 4 程序化 3D 拆解可视化页面。除内嵌的 Three.js 运行库外，不依赖任何外部 3D 模型、贴图、字体或网络资源。
 
+![DJI Osmo Action 4 3D 拆解实验室](docs/assets/hero.jpg)
+
 ## 快速开始
 
 直接用现代浏览器（Chrome / Edge / Safari）打开根目录的 **`index.html`** 即可，无需本地服务器、无需联网。
@@ -74,6 +76,12 @@ node tools/test_app_node.js
 ```
 
 > 注：内嵌材质/参数基于 DJI Osmo Action 4 公开规格进行可视化还原；内部堆叠、散热模组与部分结构件为拆解展示用途的合理建模。
+
+## 更新记录
+
+- 修复 `MeshBasicMaterial` 上误挂 `emissive` 字段导致 WebGL 每帧渲染抛出 uniform 异常、3D 模型不可见的问题；已加入模型回归测试。
+- 调整环境反射、曝光与 Bloom 强度，避免机身顶部高光过曝。
+- 增加真实浏览器（headless Edge）截图与渲染验证。
 
 ## 技术约束
 
