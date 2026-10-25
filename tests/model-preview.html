@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Action 4 — model preview (isolated QA)</title>
+<style>
+  :root { --cyan:#5fe8ff; --amber:#ffb44a; }
+  html, body { margin:0; height:100%; background:#05080d; overflow:hidden; }
+  #view { position:fixed; inset:0; }
+  canvas { display:block; }
+  .hud {
+    position:fixed; z-index:5; font:12px/1.45 "Segoe UI", system-ui, sans-serif;
+    color:#cfe6ef; background:rgba(8,14,22,.72); border:1px solid rgba(95,232,255,.22);
+    border-radius:10px; padding:12px 14px; backdrop-filter:blur(8px);
+  }
+  #panel { left:14px; top:14px; width:250px; }
+  #stats { right:14px; top:14px; font-family:Consolas, monospace; }
+  .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
+  .row label { flex:1; color:#9fb6c2; }
+  input[type=range] { width:100%; accent-color:var(--cyan); }
+  button {
+    font:600 11px "Segoe UI", system-ui, sans-serif; letter-spacing:.4px;
+    color:#dff6ff; background:rgba(95,232,255,.1); border:1px solid rgba(95,232,255,.35);
+    border-radius:6px; padding:6px 9px; cursor:pointer;
+  }
+  button:hover { background:rgba(95,232,255,.22); }
+  button.on { background:rgba(95,232,255,.3); border-color:var(--cyan); color:#fff; }
+  #parts { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:8px; }
+  #parts button { font-size:10px; padding:5px 4px; text-align:left; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  #log { color:#ff8f86; white-space:pre-wrap; font-family:Consolas, monospace; max-height:30vh; overflow:auto; display:none; }
+  #labels { position:fixed; inset:0; pointer-events:none; z-index:4; }
+  .a4-label {
+    position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+    font:600 10px Consolas, monospace; color:#eafaff; background:rgba(5,12,18,.78);
+    border:1px solid rgba(95,232,255,.5); border-radius:5px; padding:2px 6px;
+    box-shadow:0 0 12px rgba(95,232,255,.18);
+  }
+  .a4-anchor-line { position:absolute; left:0; top:0; width:2px; height:2px; border-radius:50%;
+    background:var(--amber); box-shadow:0 0 8px var(--amber); transform:translate(-50%,-50%); }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="labels"></div>
+<div id="panel" class="hud">
+  <div style="font:700 13px 'Segoe UI'; letter-spacing:1px; color:#eafaff">ACTION 4 · MODEL QA</div>
+  <div style="color:#7f97a4; margin-bottom:8px">window.Action4Model isolated preview</div>
+  <div class="row"><label for="explode">explode</label><button id="btn-explode">全部拆解</button></div>
+  <input id="explode" type="range" min="0" max="100" value="0" />
+  <div class="row"><label>body fade (hologram)</label><button id="btn-fade">ON</button></div>
+  <div class="row"><label>anchor markers</label><button id="btn-anchors">OFF</button></div>
+  <div class="row"><label>auto rotate</label><button id="btn-rotate">OFF</button></div>
+  <div id="parts"></div>
+  <div id="log"></div>
+</div>
+<div id="stats" class="hud">booting…</div>
+
+<script src="../vendor/three.bundle.js"></script>
+<script src="../src/parts-data.js"></script>
+<script src="../src/model.js"></script>
+<script>
+(function () {
+  'use strict';
+  var logEl = document.getElementById('log');
+  function showError(e) {
+    logEl.style.display = 'block';
+    logEl.textContent += (e && e.stack ? e.stack : String(e)) + '\n';
+  }
+  window.addEventListener('error', function (e) { showError(e.error || e.message); });
+
+  try {
+    var THREE = window.THREE;
+    var view = document.getElementById('view');
+    var renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    view.appendChild(renderer.domElement);
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05080d);
+
+    var camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(9.4, 5.4, 12.6);
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.1, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 5;
+    controls.maxDistance = 40;
+    controls.update();
+
+    scene.add(new THREE.HemisphereLight(0x9edfff, 0x0a0d12, 0.9));
+    var key = new THREE.DirectionalLight(0xffffff, 2.4);
+    key.position.set(6, 9, 7);
+    scene.add(key);
+    var fill = new THREE.DirectionalLight(0x7fd8ff, 1.1);
+    fill.position.set(-7, 2.5, 5);
+    scene.add(fill);
+    var rim = new THREE.DirectionalLight(0xffb44a, 1.4);
+    rim.position.set(-3, 5, -8);
+    scene.add(rim);
+
+    /* procedural studio environment for PBR reflections (no external HDR) */
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    var envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0x0b1520);
+    function panel(color, mult, w, h, pos, lookAt) {
+      var mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(mult), side: THREE.DoubleSide });
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      m.position.set(pos[0], pos[1], pos[2]);
+      m.lookAt(new THREE.Vector3(lookAt[0], lookAt[1], lookAt[2]));
+      envScene.add(m);
+    }
+    panel(0xffffff, 4.2, 9, 5, [0, 10, 2], [0, 0, 0]);
+    panel(0xbfe9ff, 2.4, 7, 8, [-11, 3, 1], [0, 0, 0]);
+    panel(0xffc27a, 1.8, 6, 6, [11, 2, -1], [0, 0, 0]);
+    panel(0x9fd4ff, 1.5, 10, 4, [0, -7, 5], [0, 0, 0]);
+    panel(0xffffff, 1.2, 6, 6, [2, 2, 12], [0, 1, 0]);
+    var envRT = pmrem.fromScene(envScene, 0.045);
+    scene.environment = envRT.texture;
+
+    var model = window.Action4Model.create(THREE);
+    scene.add(model.root);
+
+    var partIds = window.ACTION4_PARTS.map(function (p) { return p.id; });
+    var explodeVectors = {};
+    window.ACTION4_PARTS.forEach(function (p) { explodeVectors[p.id] = p.explode; });
+
+    var detached = {};
+    var selectedId = null;
+    var explodeAll = 0;
+
+    /* approximate explode progress per part from the master slider + individual toggles */
+    function applyTransforms() {
+      window.ACTION4_PARTS.forEach(function (p) {
+        var part = model.parts[p.id];
+        if (!part) { return; }
+        var on = detached[p.id] || explodeAll > 0;
+        var k = detached[p.id] ? 1 : explodeAll;
+        if (p.id === 'body' && !detached[p.id]) {
+          part.group.position.set(0, 0, 0);
+        } else {
+          part.group.position.set(p.explode[0] * k, p.explode[1] * k, p.explode[2] * k);
+        }
+      });
+      updateBodyFade();
+    }
+
+    var fadeOn = true;
+    function updateBodyFade() {
+      var body = model.parts.body;
+      if (!body || !body.fadeMaterials) { return; }
+      var k = explodeAll;
+      var anyDetached = Object.keys(detached).some(function (id) { return detached[id]; });
+      var target = (fadeOn && (k > 0.001 || anyDetached)) ? 0.16 + 0.5 * (1 - Math.min(1, Math.max(k, anyDetached ? 1 : 0))) : 1;
+      body.fadeMaterials.forEach(function (m) {
+        m.transparent = target < 0.999;
+        m.depthWrite = target > 0.999;
+        m.opacity = target;
+        m.needsUpdate = true;
+      });
+    }
+
+    /* highlight */
+    function setHighlight(id, strength) {
+      partIds.forEach(function (pid) {
+        var part = model.parts[pid];
+        if (!part) { return; }
+        part.materials.forEach(function (m) {
+          if (m.emissive && m.emissiveIntensity !== undefined) {
+            m.emissiveIntensity = (pid === id) ? strength : 0;
+          }
+        });
+      });
+    }
+
+    var raycaster = new THREE.Raycaster();
+    var pointer = new THREE.Vector2();
+    var pickList = [];
+    partIds.forEach(function (pid) {
+      var p = model.parts[pid];
+      if (p) { pickList = pickList.concat(p.pickMeshes); }
+    });
+    var hovered = null;
+    function refreshHighlight() {
+      var id = selectedId || hovered;
+      var strength = selectedId ? 0.55 : (hovered ? 0.32 : 0);
+      setHighlight(id, strength);
+    }
+    renderer.domElement.addEventListener('pointermove', function (e) {
+      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      var hits = raycaster.intersectObjects(pickList, false);
+      var id = hits.length ? hits[0].object.userData.partId : null;
+      if (id !== hovered) {
+        hovered = id;
+        refreshHighlight();
+      }
+    });
+    renderer.domElement.addEventListener('pointerdown', function () {
+      selectedId = hovered;
+      refreshHighlight();
+      syncButtons();
+    });
+
+    /* UI */
+    var explodeSlider = document.getElementById('explode');
+    explodeSlider.addEventListener('input', function () {
+      explodeAll = parseFloat(this.value) / 100;
+      applyTransforms();
+    });
+    var btnExplode = document.getElementById('btn-explode');
+    btnExplode.addEventListener('click', function () {
+      explodeAll = explodeAll > 0.5 ? 0 : 1;
+      explodeSlider.value = String(Math.round(explodeAll * 100));
+      applyTransforms();
+      syncButtons();
+    });
+    var btnFade = document.getElementById('btn-fade');
+    btnFade.addEventListener('click', function () {
+      fadeOn = !fadeOn;
+      btnFade.classList.toggle('on', fadeOn);
+      updateBodyFade();
+    });
+    btnFade.classList.add('on');
+
+    var showAnchors = false;
+    var btnAnchors = document.getElementById('btn-anchors');
+    var labelLayer = document.getElementById('labels');
+    var labelEls = {};
+    partIds.forEach(function (pid) {
+      var d = document.createElement('div');
+      d.className = 'a4-label';
+      d.textContent = pid;
+      d.style.display = 'none';
+      labelLayer.appendChild(d);
+      labelEls[pid] = d;
+    });
+    btnAnchors.addEventListener('click', function () {
+      showAnchors = !showAnchors;
+      btnAnchors.classList.toggle('on', showAnchors);
+      btnAnchors.textContent = showAnchors ? 'ON' : 'OFF';
+    });
+
+    var rotate = false;
+    var btnRotate = document.getElementById('btn-rotate');
+    btnRotate.addEventListener('click', function () {
+      rotate = !rotate;
+      btnRotate.classList.toggle('on', rotate);
+      btnRotate.textContent = rotate ? 'ON' : 'OFF';
+    });
+
+    var partsEl = document.getElementById('parts');
+    var partButtons = {};
+    partIds.forEach(function (pid) {
+      var b = document.createElement('button');
+      b.textContent = pid;
+      b.addEventListener('click', function () {
+        detached[pid] = !detached[pid];
+        applyTransforms();
+        syncButtons();
+      });
+      partsEl.appendChild(b);
+      partButtons[pid] = b;
+    });
+    function syncButtons() {
+      partIds.forEach(function (pid) {
+        partButtons[pid].classList.toggle('on', !!detached[pid] || pid === selectedId);
+      });
+      btnExplode.classList.toggle('on', explodeAll > 0.5);
+    }
+
+    /* stats + counts */
+    var meshCount = 0;
+    var triCount = 0;
+    model.root.traverse(function (o) {
+      if (!o.isMesh) { return; }
+      meshCount++;
+      var g = o.geometry;
+      triCount += g.index ? g.index.count / 3 : g.attributes.position.count / 3;
+    });
+    document.getElementById('stats').textContent =
+      'THREE r' + THREE.REVISION + '\n' +
+      'parts ' + partIds.length + '\n' +
+      'meshes ' + meshCount + '\n' +
+      'tris ' + Math.round(triCount).toLocaleString('en-US') + '\n' +
+      'hover/click to highlight';
+
+    var anchorWorld = new THREE.Vector3();
+    var clock = new THREE.Clock();
+    var elapsed = 0;
+    var state = { exploded: false, explodedCount: 0, selectedId: null };
+    function animate() {
+      requestAnimationFrame(animate);
+      var dt = Math.min(clock.getDelta(), 0.05);
+      elapsed += dt;
+      state.exploded = explodeAll > 0.5;
+      state.explodedCount = Object.keys(detached).filter(function (k) { return detached[k]; }).length;
+      state.selectedId = selectedId;
+      model.update(dt, elapsed, state);
+      if (rotate) { model.root.rotation.y += dt * 0.35; } else { model.root.rotation.y *= 0.98; }
+      controls.update();
+      renderer.render(scene, camera);
+
+      if (showAnchors) {
+        partIds.forEach(function (pid) {
+          var part = model.parts[pid];
+          if (!part) { return; }
+          part.anchor.getWorldPosition(anchorWorld);
+          anchorWorld.project(camera);
+          var el = labelEls[pid];
+          if (anchorWorld.z > 1 || anchorWorld.z < -1) { el.style.display = 'none'; return; }
+          el.style.display = 'block';
+          el.style.left = ((anchorWorld.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+          el.style.top = ((-anchorWorld.y * 0.5 + 0.5) * window.innerHeight) + 'px';
+        });
+      } else {
+        partIds.forEach(function (pid) { labelEls[pid].style.display = 'none'; });
+      }
+    }
+
+    function resize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener('resize', resize);
+    applyTransforms();
+    syncButtons();
+    animate();
+  } catch (e) {
+    showError(e);
+  }
+})();
+</script>
+</body>
+</html>

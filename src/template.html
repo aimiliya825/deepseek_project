@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#03060b" />
+<meta name="description" content="DJI Osmo Action 4 程序化 3D 拆解实验室 — Three.js，交互式爆炸视图、部件参数与发光标注。" />
+<title>DJI Osmo Action 4 · 3D 拆解实验室</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23060b12'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%235fe8ff' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%23ffb44a'/%3E%3C/svg%3E" />
+<!--INLINE_STYLES-->
+</head>
+<body>
+<div id="app">
+  <div id="scene" aria-label="DJI Osmo Action 4 三维交互模型"></div>
+  <div id="scene-fx" aria-hidden="true">
+    <div class="fx-scanlines"></div>
+    <div class="fx-vignette"></div>
+    <div class="fx-grain"></div>
+    <div class="fx-topline"></div>
+    <div class="fx-crosshair fx-crosshair--tl"></div>
+    <div class="fx-crosshair fx-crosshair--tr"></div>
+    <div class="fx-crosshair fx-crosshair--bl"></div>
+    <div class="fx-crosshair fx-crosshair--br"></div>
+  </div>
+
+  <div id="ui-root"></div>
+
+  <div id="label-layer" aria-live="polite">
+    <svg id="leader-lines" aria-hidden="true"></svg>
+    <div id="leader-dots" aria-hidden="true"></div>
+    <div id="label-items"></div>
+  </div>
+
+  <div id="cursor-tip" aria-hidden="true"></div>
+
+  <div id="boot-screen">
+    <div class="boot-grid" aria-hidden="true"></div>
+    <div class="boot-scan" aria-hidden="true"></div>
+    <div class="boot-inner">
+      <div class="boot-topline"><span>DJI / OSMO ACTION 4</span><span>TEARDOWN SYSTEM © 2026</span></div>
+      <div class="boot-center">
+        <div class="boot-orbit" aria-hidden="true">
+          <span class="boot-orbit-ring boot-orbit-ring--a"></span>
+          <span class="boot-orbit-ring boot-orbit-ring--b"></span>
+          <span class="boot-orbit-dot"></span>
+          <span class="boot-axis">Z</span>
+        </div>
+        <div class="boot-copy">
+          <p class="boot-kicker"><i></i> PROCEDURAL 3D TEARDOWN LAB</p>
+          <h1>OSMO<br /><em>ACTION 4</em></h1>
+          <p class="boot-sub">结构拆解实验室 <span>/</span> 精密构建中</p>
+        </div>
+      </div>
+      <div class="boot-bottom">
+        <div class="boot-progress-wrap">
+          <div class="boot-progress-label"><span id="boot-status">INITIALIZING SPATIAL ENGINE</span><span id="boot-percent">00 %</span></div>
+          <div class="boot-progress"><span id="boot-bar"></span></div>
+        </div>
+        <div class="boot-specs">
+          <span>1/1.3″ CMOS</span><span>155° ULTRA-WIDE</span><span>4K / 120 FPS</span><span>THREE.JS · PBR</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="webgl-error" hidden>
+    <div class="webgl-error-card">
+      <span class="webgl-error-code">ERR / GPU</span>
+      <h2>无法启动 3D 渲染</h2>
+      <p>当前浏览器或设备未能创建 WebGL 上下文。请使用最新版 Chrome / Edge / Safari，并确认硬件加速已开启。</p>
+      <button type="button" onclick="location.reload()">重新载入</button>
+    </div>
+  </div>
+
+  <div id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+</div>
+
+<!--INLINE_THREE-->
+<!--INLINE_PARTS-->
+<!--INLINE_MODEL-->
+<!--INLINE_UI-->
+<!--INLINE_APP-->
+</body>
+</html>
