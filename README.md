@@ -4,6 +4,10 @@
 
 ![DJI Osmo Action 4 3D 拆解实验室](docs/assets/hero.jpg)
 
+**在线演示：** https://aimiliya825.github.io/deepseek_project/
+
+> 如果 GitHub 仓库页面只显示 README，请点击上面的在线演示链接；页面可直接在浏览器中运行，无需下载。
+
 ## 快速开始
 
 直接用现代浏览器（Chrome / Edge / Safari）打开根目录的 **`index.html`** 即可，无需本地服务器、无需联网。
